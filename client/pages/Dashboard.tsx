@@ -22,7 +22,10 @@ import {
   DollarSign,
   Clock,
   CheckCircle2,
+  X,
 } from "lucide-react";
+import { useLocalStorage } from "@/hooks/use-local-storage";
+import { downloadInvoicePDF } from "@/lib/pdf-generator";
 
 interface Client {
   id: string;
@@ -55,80 +58,101 @@ interface Invoice {
   dueDate: string;
 }
 
+const DEFAULT_CLIENTS: Client[] = [
+  {
+    id: "1",
+    name: "Acme Corporation",
+    email: "contact@acme.com",
+    phone: "+1 (555) 123-4567",
+    company: "Acme",
+    totalInvoiced: 5200,
+    projects: 2,
+  },
+  {
+    id: "2",
+    name: "TechStart Inc.",
+    email: "hello@techstart.com",
+    phone: "+1 (555) 987-6543",
+    company: "TechStart",
+    totalInvoiced: 3800,
+    projects: 1,
+  },
+];
+
+const DEFAULT_PROJECTS: Project[] = [
+  {
+    id: "1",
+    name: "Website Redesign",
+    client: "Acme Corporation",
+    status: "active",
+    rate: 85,
+    type: "hourly",
+    hoursLogged: 24,
+    dueDate: "2024-02-15",
+  },
+  {
+    id: "2",
+    name: "Logo Design",
+    client: "TechStart Inc.",
+    status: "completed",
+    rate: 1500,
+    type: "flat",
+    dueDate: "2024-01-20",
+  },
+];
+
+const DEFAULT_INVOICES: Invoice[] = [
+  {
+    id: "1",
+    number: "INV-001",
+    client: "Acme Corporation",
+    amount: 2040,
+    status: "paid",
+    date: "2024-01-15",
+    dueDate: "2024-02-15",
+  },
+  {
+    id: "2",
+    number: "INV-002",
+    client: "TechStart Inc.",
+    amount: 1500,
+    status: "sent",
+    date: "2024-01-20",
+    dueDate: "2024-02-20",
+  },
+  {
+    id: "3",
+    number: "INV-003",
+    client: "Acme Corporation",
+    amount: 3160,
+    status: "overdue",
+    date: "2023-12-01",
+    dueDate: "2024-01-01",
+  },
+];
+
 export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [clients] = useState<Client[]>([
-    {
-      id: "1",
-      name: "Acme Corporation",
-      email: "contact@acme.com",
-      phone: "+1 (555) 123-4567",
-      company: "Acme",
-      totalInvoiced: 5200,
-      projects: 2,
-    },
-    {
-      id: "2",
-      name: "TechStart Inc.",
-      email: "hello@techstart.com",
-      phone: "+1 (555) 987-6543",
-      company: "TechStart",
-      totalInvoiced: 3800,
-      projects: 1,
-    },
-  ]);
+  const [clients, setClients] = useLocalStorage<Client[]>("clients", DEFAULT_CLIENTS);
+  const [projects, setProjects] = useLocalStorage<Project[]>("projects", DEFAULT_PROJECTS);
+  const [invoices, setInvoices] = useLocalStorage<Invoice[]>("invoices", DEFAULT_INVOICES);
 
-  const [projects] = useState<Project[]>([
-    {
-      id: "1",
-      name: "Website Redesign",
-      client: "Acme Corporation",
-      status: "active",
-      rate: 85,
-      type: "hourly",
-      hoursLogged: 24,
-      dueDate: "2024-02-15",
-    },
-    {
-      id: "2",
-      name: "Logo Design",
-      client: "TechStart Inc.",
-      status: "completed",
-      rate: 1500,
-      type: "flat",
-      dueDate: "2024-01-20",
-    },
-  ]);
+  const [newClientOpen, setNewClientOpen] = useState(false);
+  const [newClientData, setNewClientData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    company: "",
+  });
 
-  const [invoices] = useState<Invoice[]>([
-    {
-      id: "1",
-      number: "INV-001",
-      client: "Acme Corporation",
-      amount: 2040,
-      status: "paid",
-      date: "2024-01-15",
-      dueDate: "2024-02-15",
-    },
-    {
-      id: "2",
-      number: "INV-002",
-      client: "TechStart Inc.",
-      amount: 1500,
-      status: "sent",
-      date: "2024-01-20",
-      dueDate: "2024-02-20",
-    },
-    {
-      id: "3",
-      number: "INV-003",
-      client: "Acme Corporation",
-      amount: 3160,
-      status: "overdue",
-      date: "2023-12-01",
-      dueDate: "2024-01-01",
-    },
-  ]);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [newProjectData, setNewProjectData] = useState({
+    name: "",
+    client: "",
+    rate: "",
+    type: "hourly" as "hourly" | "flat",
+    dueDate: "",
+  });
 
   const totalRevenue = invoices.reduce((sum, inv) => sum + inv.amount, 0);
   const paidAmount = invoices
@@ -156,6 +180,90 @@ export default function Dashboard() {
         return "bg-gray-50 text-gray-700 border-gray-200";
     }
   };
+
+  const handleAddClient = () => {
+    if (!newClientData.name || !newClientData.email || !newClientData.phone) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    const newClient: Client = {
+      id: Date.now().toString(),
+      ...newClientData,
+      totalInvoiced: 0,
+      projects: 0,
+    };
+
+    setClients([...clients, newClient]);
+    setNewClientData({ name: "", email: "", phone: "", company: "" });
+    setNewClientOpen(false);
+  };
+
+  const handleDeleteClient = (id: string) => {
+    setClients(clients.filter((c) => c.id !== id));
+  };
+
+  const handleAddProject = () => {
+    if (!newProjectData.name || !newProjectData.client || !newProjectData.rate || !newProjectData.dueDate) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    const newProject: Project = {
+      id: Date.now().toString(),
+      ...newProjectData,
+      status: "active",
+      rate: parseFloat(newProjectData.rate),
+      hoursLogged: 0,
+    };
+
+    setProjects([...projects, newProject]);
+    setNewProjectData({
+      name: "",
+      client: "",
+      rate: "",
+      type: "hourly",
+      dueDate: "",
+    });
+    setNewProjectOpen(false);
+  };
+
+  const handleChangeInvoiceStatus = (id: string, newStatus: Invoice["status"]) => {
+    setInvoices(
+      invoices.map((inv) =>
+        inv.id === id ? { ...inv, status: newStatus } : inv
+      )
+    );
+  };
+
+  const handleDownloadInvoice = (invoice: Invoice) => {
+    const client = clients.find((c) => c.name === invoice.client);
+    if (!client) {
+      alert("Client not found");
+      return;
+    }
+
+    downloadInvoicePDF(invoice, {
+      name: client.name,
+      email: client.email,
+      phone: client.phone,
+      company: client.company,
+    });
+  };
+
+  const handleDeleteProject = (id: string) => {
+    setProjects(projects.filter((p) => p.id !== id));
+  };
+
+  const handleDeleteInvoice = (id: string) => {
+    setInvoices(invoices.filter((inv) => inv.id !== id));
+  };
+
+  const filteredClients = clients.filter(
+    (c) =>
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -337,14 +445,23 @@ export default function Dashboard() {
                           ${invoice.amount.toLocaleString()}
                         </td>
                         <td className="px-6 py-4 text-sm">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
+                          <select
+                            value={invoice.status}
+                            onChange={(e) =>
+                              handleChangeInvoiceStatus(
+                                invoice.id,
+                                e.target.value as Invoice["status"]
+                              )
+                            }
+                            className={`px-3 py-1 rounded-full text-xs font-medium border cursor-pointer ${getStatusColor(
                               invoice.status
                             )}`}
                           >
-                            {invoice.status.charAt(0).toUpperCase() +
-                              invoice.status.slice(1)}
-                          </span>
+                            <option value="draft">Draft</option>
+                            <option value="sent">Sent</option>
+                            <option value="paid">Paid</option>
+                            <option value="overdue">Overdue</option>
+                          </select>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700">
                           {new Date(invoice.dueDate).toLocaleDateString()}
@@ -355,15 +472,17 @@ export default function Dashboard() {
                               variant="ghost"
                               size="sm"
                               className="text-blue-600 hover:text-blue-700"
+                              onClick={() => handleDownloadInvoice(invoice)}
                             >
                               <Download className="w-4 h-4" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="text-slate-600 hover:text-slate-900"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => handleDeleteInvoice(invoice.id)}
                             >
-                              <MoreHorizontal className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
                         </td>
@@ -390,7 +509,7 @@ export default function Dashboard() {
                     />
                   </div>
                 </div>
-                <Dialog>
+                <Dialog open={newClientOpen} onOpenChange={setNewClientOpen}>
                   <DialogTrigger asChild>
                     <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                       <Plus className="w-4 h-4 mr-2" />
@@ -402,10 +521,67 @@ export default function Dashboard() {
                       <DialogTitle>Add New Client</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
-                      <p className="text-slate-600">
-                        Add a new client to start tracking projects and invoices.
-                      </p>
-                      <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Name *</label>
+                        <Input
+                          placeholder="Client name"
+                          value={newClientData.name}
+                          onChange={(e) =>
+                            setNewClientData({
+                              ...newClientData,
+                              name: e.target.value,
+                            })
+                          }
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Email *</label>
+                        <Input
+                          placeholder="client@example.com"
+                          type="email"
+                          value={newClientData.email}
+                          onChange={(e) =>
+                            setNewClientData({
+                              ...newClientData,
+                              email: e.target.value,
+                            })
+                          }
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Phone *</label>
+                        <Input
+                          placeholder="+1 (555) 000-0000"
+                          value={newClientData.phone}
+                          onChange={(e) =>
+                            setNewClientData({
+                              ...newClientData,
+                              phone: e.target.value,
+                            })
+                          }
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Company</label>
+                        <Input
+                          placeholder="Company name (optional)"
+                          value={newClientData.company}
+                          onChange={(e) =>
+                            setNewClientData({
+                              ...newClientData,
+                              company: e.target.value,
+                            })
+                          }
+                          className="mt-1"
+                        />
+                      </div>
+                      <Button
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={handleAddClient}
+                      >
                         Save Client
                       </Button>
                     </div>
@@ -437,7 +613,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {clients.map((client) => (
+                    {filteredClients.map((client) => (
                       <tr
                         key={client.id}
                         className="border-b border-slate-200 hover:bg-slate-50"
@@ -462,14 +638,8 @@ export default function Dashboard() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="text-slate-600 hover:text-slate-900"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
                               className="text-red-600 hover:text-red-700"
+                              onClick={() => handleDeleteClient(client.id)}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -488,7 +658,7 @@ export default function Dashboard() {
             <Card className="border border-slate-200">
               <div className="p-6 border-b border-slate-200 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-slate-900">Projects</h3>
-                <Dialog>
+                <Dialog open={newProjectOpen} onOpenChange={setNewProjectOpen}>
                   <DialogTrigger asChild>
                     <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                       <Plus className="w-4 h-4 mr-2" />
@@ -500,11 +670,89 @@ export default function Dashboard() {
                       <DialogTitle>Create New Project</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
-                      <p className="text-slate-600">
-                        Create a new project for a client to start tracking work and
-                        billable hours.
-                      </p>
-                      <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Project Name *</label>
+                        <Input
+                          placeholder="Project name"
+                          value={newProjectData.name}
+                          onChange={(e) =>
+                            setNewProjectData({
+                              ...newProjectData,
+                              name: e.target.value,
+                            })
+                          }
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Client *</label>
+                        <select
+                          value={newProjectData.client}
+                          onChange={(e) =>
+                            setNewProjectData({
+                              ...newProjectData,
+                              client: e.target.value,
+                            })
+                          }
+                          className="w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                        >
+                          <option value="">Select a client</option>
+                          {clients.map((c) => (
+                            <option key={c.id} value={c.name}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Type *</label>
+                        <select
+                          value={newProjectData.type}
+                          onChange={(e) =>
+                            setNewProjectData({
+                              ...newProjectData,
+                              type: e.target.value as "hourly" | "flat",
+                            })
+                          }
+                          className="w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                        >
+                          <option value="hourly">Hourly</option>
+                          <option value="flat">Flat Rate</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Rate *</label>
+                        <Input
+                          placeholder={newProjectData.type === "hourly" ? "Rate per hour" : "Flat rate"}
+                          type="number"
+                          value={newProjectData.rate}
+                          onChange={(e) =>
+                            setNewProjectData({
+                              ...newProjectData,
+                              rate: e.target.value,
+                            })
+                          }
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Due Date *</label>
+                        <Input
+                          type="date"
+                          value={newProjectData.dueDate}
+                          onChange={(e) =>
+                            setNewProjectData({
+                              ...newProjectData,
+                              dueDate: e.target.value,
+                            })
+                          }
+                          className="mt-1"
+                        />
+                      </div>
+                      <Button
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={handleAddProject}
+                      >
                         Save Project
                       </Button>
                     </div>
@@ -574,16 +822,10 @@ export default function Dashboard() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="text-blue-600 hover:text-blue-700"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => handleDeleteProject(project.id)}
                             >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-slate-600 hover:text-slate-900"
-                            >
-                              <MoreHorizontal className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
                         </td>
