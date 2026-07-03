@@ -23,7 +23,14 @@ import {
   Clock,
   CheckCircle2,
   X,
+  RotateCcw,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { downloadInvoicePDF } from "@/lib/pdf-generator";
 
@@ -265,6 +272,15 @@ export default function Dashboard() {
       c.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleResetData = () => {
+    if (window.confirm("Reset all data to defaults? This cannot be undone.")) {
+      localStorage.removeItem("clients");
+      localStorage.removeItem("projects");
+      localStorage.removeItem("invoices");
+      window.location.reload();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -279,14 +295,24 @@ export default function Dashboard() {
                 InvoiceFlow
               </span>
             </Link>
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-slate-600 hover:text-slate-900"
-              >
-                <Settings className="w-5 h-5" />
-              </Button>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-slate-600 hover:text-slate-900"
+                  >
+                    <Settings className="w-5 h-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleResetData} className="text-red-600">
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Reset All Data
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="ghost"
                 size="sm"
@@ -405,92 +431,126 @@ export default function Dashboard() {
                   </DialogContent>
                 </Dialog>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50">
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                        Invoice #
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                        Client
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                        Amount
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                        Due Date
-                      </th>
-                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-900">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoices.map((invoice) => (
-                      <tr
-                        key={invoice.id}
-                        className="border-b border-slate-200 hover:bg-slate-50"
-                      >
-                        <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                          {invoice.number}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-700">
-                          {invoice.client}
-                        </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                          ${invoice.amount.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          <select
-                            value={invoice.status}
-                            onChange={(e) =>
-                              handleChangeInvoiceStatus(
-                                invoice.id,
-                                e.target.value as Invoice["status"]
-                              )
-                            }
-                            className={`px-3 py-1 rounded-full text-xs font-medium border cursor-pointer ${getStatusColor(
-                              invoice.status
-                            )}`}
-                          >
-                            <option value="draft">Draft</option>
-                            <option value="sent">Sent</option>
-                            <option value="paid">Paid</option>
-                            <option value="overdue">Overdue</option>
-                          </select>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-700">
-                          {new Date(invoice.dueDate).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-blue-600 hover:text-blue-700"
-                              onClick={() => handleDownloadInvoice(invoice)}
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700"
-                              onClick={() => handleDeleteInvoice(invoice.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </td>
+              {invoices.length === 0 ? (
+                <div className="p-12 text-center">
+                  <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                    No invoices yet
+                  </h3>
+                  <p className="text-slate-600 mb-6">
+                    Get started by creating your first invoice. Select a client and generate a professional PDF.
+                  </p>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create Your First Invoice
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Create New Invoice</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <p className="text-slate-600">
+                          Select a client and configure invoice details to generate a
+                          professional PDF invoice.
+                        </p>
+                        <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                          Generate Invoice
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50">
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
+                          Invoice #
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
+                          Client
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
+                          Amount
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
+                          Due Date
+                        </th>
+                        <th className="px-6 py-3 text-right text-sm font-semibold text-slate-900">
+                          Actions
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {invoices.map((invoice) => (
+                        <tr
+                          key={invoice.id}
+                          className="border-b border-slate-200 hover:bg-slate-50"
+                        >
+                          <td className="px-6 py-4 text-sm font-medium text-slate-900">
+                            {invoice.number}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700">
+                            {invoice.client}
+                          </td>
+                          <td className="px-6 py-4 text-sm font-semibold text-slate-900">
+                            ${invoice.amount.toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            <select
+                              value={invoice.status}
+                              onChange={(e) =>
+                                handleChangeInvoiceStatus(
+                                  invoice.id,
+                                  e.target.value as Invoice["status"]
+                                )
+                              }
+                              className={`px-3 py-1 rounded-full text-xs font-medium border cursor-pointer ${getStatusColor(
+                                invoice.status
+                              )}`}
+                            >
+                              <option value="draft">Draft</option>
+                              <option value="sent">Sent</option>
+                              <option value="paid">Paid</option>
+                              <option value="overdue">Overdue</option>
+                            </select>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700">
+                            {new Date(invoice.dueDate).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-blue-600 hover:text-blue-700"
+                                onClick={() => handleDownloadInvoice(invoice)}
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600 hover:text-red-700"
+                                onClick={() => handleDeleteInvoice(invoice.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </Card>
           </TabsContent>
 
